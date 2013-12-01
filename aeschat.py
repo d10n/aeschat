@@ -139,7 +139,8 @@ def set_aes_key(word, word_eol, userdata):
     channel_keys[server + channel] = word[1]
     # base64 encode so passwords don't show up with grep or something similar
     hexchat.set_pluginpref(
-        __module_name__, base64.standard_b64encode(to_utf8(repr(channel_keys)))
+        __module_name__,
+        to_str(base64.standard_b64encode(to_utf8(repr(channel_keys))))
     )
     hexchat.prnt('AESKEY: key for {} @ {} set'.format(channel, server))
     return hexchat.EAT_ALL
@@ -149,7 +150,7 @@ if __module_name__ in hexchat.list_pluginpref():
     import ast
     keys_b64 = hexchat.get_pluginpref(__module_name__)
     try:
-        keys_string = base64.standard_b64decode(keys_b64)
+        keys_string = to_str(base64.standard_b64decode(keys_b64))
         channel_keys = ast.literal_eval(keys_string)
     except TypeError as ex:
         pass
