@@ -33,16 +33,30 @@ __module_description__ = 'AES end-to-end encryption'
 IS_PY2 = sys.version_info[0] == 2
 FLAG = '++OK'
 IRC_MAX_MESSAGE_LENGTH = 512
-if IS_PY2:
-    safety_mark = u'\u2713\u00a0'.encode('utf-8')
-else:
-    safety_mark = u'\u2713\u00a0'
-
+safety_mark = u'\u2713\u00a0'
 
 channel_keys = {}
 # keys[server+channel] = 'key'
 
 ctcp_escape = lambda x: '\x01' + x + '\x01'
+
+
+def to_utf8(string):
+    if hasattr(string, 'decode'):
+        string = string.decode()
+    return string.encode('utf8')
+
+
+def to_str(string):
+    # Prevent Py3 from printing b''
+    u_type = type(b''.decode('utf8'))
+    if IS_PY2:
+        if isinstance(string, u_type):
+            return string.encode('utf8')
+    else:
+        if isinstance(string, bytes):
+            return string.decode('utf8')
+    return string
 
 
 def decrypt_privmsg(word, word_eol, userdata):
@@ -61,12 +75,9 @@ def decrypt_privmsg(word, word_eol, userdata):
             channel_keys[server + channel], message_aes)
     except simplecrypt.DecryptionException as ex:
         return hexchat.EAT_NONE
-    if not IS_PY2:
-        message_gzip = message_gzip.decode('utf8')
     message_raw = zlib.decompress(message_gzip)
-
     context.command('RECV :{} PRIVMSG {} :{}'.format(
-        safety_mark + nick, channel, message_raw
+        to_str(safety_mark + nick), to_str(channel), to_str(message_raw)
     ))
     return hexchat.EAT_ALL
 
@@ -83,6 +94,7 @@ def encrypt_privmsg(word, word_eol, userdata):
         if ctcp_type.lower() in ['me', 'action']:
             ctcp_type = 'ACTION'
         message_raw = ctcp_escape('{} {}'.format(ctcp_type, message_raw))
+    message_raw = to_utf8(message_raw)
     message_gzip = zlib.compress(message_raw, 9)
     message_aes = simplecrypt.encrypt(
         channel_keys[server + channel], message_gzip)
@@ -107,7 +119,7 @@ def encrypt_privmsg(word, word_eol, userdata):
     context.command(message_prototype.format(channel, FLAG, message_b64))
     # lets you highlight yourself but less ugly than handling events manually
     context.command('RECV :{} PRIVMSG {} :{}'.format(
-        safety_mark + nick, channel, message_raw
+        to_str(safety_mark + nick), to_str(channel), to_str(message_raw)
     ))
     return hexchat.EAT_ALL
 
@@ -127,7 +139,7 @@ def set_aes_key(word, word_eol, userdata):
     channel_keys[server + channel] = word[1]
     # base64 encode so passwords don't show up with grep or something similar
     hexchat.set_pluginpref(
-        __module_name__, base64.standard_b64encode(repr(channel_keys))
+        __module_name__, base64.standard_b64encode(to_utf8(repr(channel_keys)))
     )
     hexchat.prnt('AESKEY: key for {} @ {} set'.format(channel, server))
     return hexchat.EAT_ALL
